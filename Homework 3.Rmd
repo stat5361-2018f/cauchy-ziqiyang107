@@ -1,0 +1,192 @@
+---
+title: "Statistical Computing Homework 3, Chapter 3"
+output: 
+  html_document:
+    toc: true
+    theme: united
+    number_sections: true
+    fig_width: 9 
+    fig_height: 6 
+author:
+  Ziqi Yang
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# MLE of Cauchy Distribution
+## (a) log-likelihood
+**log-likelihood and their derivatives are obvious, now consider compute the Fisher information:  
+\begin{align*}
+I_n(\theta)=nE[l^{'}_{\theta}]^2
+\end{align*}
+where $l^{'}_{\theta}$ is only based on one sample point. So we have:
+\begin{align*}
+I_n(\theta)=nE[l^{'}_{\theta}]^2=nE \big[4 \frac{(\theta-X)^2}{(1+(\theta-X)^2)^2} \big] &= 4n \int_{-\infty}^{\infty} \frac{(\theta-X)^2}{(1+(\theta-X)^2)^2} \frac{1}{\pi(1+(\theta-X)^2)} dX \\
+&= \frac{4n}{\pi} \int_{-\infty}^{\infty} \frac{(\theta-X)^2}{(1+(\theta-X)^2)^3} dX
+\end{align*}
+So let $u=\theta-X$, we have:
+\begin{align*}
+I_n(\theta)=\frac{4n}{\pi} \int_{-\infty}^{\infty} \frac{u^2}{(1+u^2)^3} du = \frac{8n}{\pi} \int_{0}^{\infty} \frac{u^2}{(1+u^2)^3} du
+\end{align*}
+Now let $u =\tan(\theta)$, so $\theta$ is from $0$ to $\pi/2$, and also we have $du=(1+\tan^2(\theta))d\theta$, so it's equal to
+\begin{align*}
+\frac{8n}{\pi}\int_{0}^{\pi/2} \frac{\tan^2 \theta}{(1+\tan^2 \theta)^3} (1+\tan^2 \theta) d\theta \\
+&= \frac{8n}{\pi}\int_{0}^{\pi/2} \frac{\tan^2 \theta}{(1+\tan^2 \theta)^2} d\theta \\
+&= \frac{8n}{\pi}\int_{0}^{\pi/2} \sin^2 \theta \cos^2 \theta d\theta \\
+&= \frac{2n}{\pi}\int_{0}^{\pi/2} (2\sin \theta \cos \theta)^2 d\theta \\
+&= \frac{2n}{\pi}\int_{0}^{\pi/2} (\sin 2\theta)^2 d\theta \\
+&= \frac{2n}{\pi}\int_{0}^{\pi/2} \frac{1-\cos(4\theta)}{2} d\theta = \frac{n}{2}
+\end{align*}
+
+## (b)
+```{r}
+set.seed(20180909)
+n <- 10; theta <- 5
+cauc <- rcauchy(n, location = theta, scale = 1)
+cauc.log <- function(para) {
+  -n * log(pi) - sum( log(1 + (para-cauc)^2) )
+}
+
+# Use sapply here to solve the unplottable issue:
+cauc.log.plottable <- function(x) {return(sapply(x, cauc.log))}
+curve(cauc.log.plottable(x), from = -10, to = 20)
+```
+
+## (c) MLE using Newton-Raphson
+```{r}
+cauc.log.D1 <- function(para) {
+  -2 * sum( (para - cauc)/(1+(para-cauc)^2) )
+}
+
+# cauc.log.D1.plottable <- function(x) {return(sapply(x, cauc.log.D1))}
+# curve(cauc.log.D1.plottable(x), from = -20, to = 0)
+
+cauc.log.D2 <- function(para) {
+  -2 * sum( (1-(para - cauc)^2)/(1+(para-cauc)^2)^2 )
+}
+
+```
+
+```{r, }
+para <- seq(-10,20,by=0.5);  temp <- rep(0, length(para))
+for (i in 1:length(para)) {
+  iter <- 0;  epsilon <- 0.001; 
+  temp[i] <- para[i] - 1
+  while( (iter <= 1000)&(abs(para[i]-temp[i])/(abs(temp[i])) > epsilon) ) {
+    temp[i] <- para[i]
+    para[i] <- para[i] - cauc.log.D1(para[i])/cauc.log.D2(para[i])
+    if(abs(para[i]) == Inf) {break}
+    iter <- iter + 1
+    #print(para[i])
+  }
+}
+print(para)
+```
+
+
+** From the result, we can see that for some starting points, the algorithm won't converge, some other converge to different values, some converge to MLE.**  
+
+
+
+
+
+
+## (d) Fixed-point iteration:  
+
+**When $\alpha=1$, we have the final results:** 
+```{r}
+alpha <- 1;  para <- seq(-10,20,by=0.5); temp <- rep(0, length(para))
+G <- function(x) {
+  alpha * cauc.log.D1(x) + x
+}
+
+for (i in 1:length(para)) {
+  iter <- 0;  epsilon <- 0.001; 
+  temp[i] <- para[i] - 1
+  while( (iter <= 1000)&(abs(para[i]-temp[i])/(abs(temp[i])) > epsilon) ) {
+    temp[i] <- para[i]
+    para[i] <- G(para[i])
+    if(abs(para[i]) == Inf) {break}
+    iter <- iter + 1
+    # print(para[i])
+  }
+}
+print(para)
+```
+
+
+**When $\alpha=0.64$, we have the final results:**  
+```{r, echo = F}
+alpha <- 0.64;  para <- seq(-10,20,by=0.5); temp <- rep(0, length(para))
+G <- function(x) {
+  alpha * cauc.log.D1(x) + x
+}
+
+for (i in 1:length(para)) {
+  iter <- 0;  epsilon <- 0.001; 
+  temp[i] <- para[i] - 1
+  while( (iter <= 1000)&(abs(para[i]-temp[i])/(abs(temp[i])) > epsilon) ) {
+    temp[i] <- para[i]
+    para[i] <- G(para[i])
+    if(abs(para[i]) == Inf) {break}
+    iter <- iter + 1
+    # print(para[i])
+  }
+}
+print(para)
+```
+
+
+**When $\alpha=0.25$, we have the final results:**   
+```{r, echo = F}
+alpha <- 0.25;  para <- seq(-10,20,by=0.5); temp <- rep(0, length(para))
+G <- function(x) {
+  alpha * cauc.log.D1(x) + x
+}
+
+for (i in 1:length(para)) {
+  iter <- 0;  epsilon <- 0.001; 
+  temp[i] <- para[i] - 1
+  while( (iter <= 1000)&(abs(para[i]-temp[i])/(abs(temp[i])) > epsilon) ) {
+    temp[i] <- para[i]
+    para[i] <- G(para[i])
+    if(abs(para[i]) == Inf) {break}
+    iter <- iter + 1
+    # print(para[i])
+  }
+}
+print(para)
+```
+
+## (e) Fisher Scoring:
+```{r}
+para <- seq(-10,20,by=0.5);  temp <- rep(0, length(para))
+for (i in 1:length(para)) {
+  iter <- 0;  epsilon <- 0.001; 
+  temp[i] <- para[i] - 1
+  while( (iter <= 1000)&(abs(para[i]-temp[i])/(abs(temp[i])) > epsilon) ) {
+    temp[i] <- para[i]
+    para[i] <- para[i] + cauc.log.D1(para[i])/5
+    if(abs(para[i]) == Inf) {break}
+    iter <- iter + 1
+    #print(para[i])
+  }
+}
+print(para)
+```
+
+**It's convergent time is pretty fast and stable**  
+
+## (f) Comments
+* Newton-Raphson is not very stable here, it severely depends on the starting points. It's also not very fast  
+* Fixed point method is stable and fast, if we choose the correct $\alpha$  
+* Fisher scoring is stable and fast  
+
+
+
+
+
+
